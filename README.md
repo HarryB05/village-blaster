@@ -38,6 +38,6 @@ Why not?
 ## Credits
 
 - Me: For having the idea and prompting Cursor
-- [Cursor](https://www.cursor.com): For writing all the actual code
+- [Cursor](https://www.cursor.com): For writing most of the code
 - [Three.js](https://threejs.org): For making 3D in the browser possible
 - The villagers: For being such good target practice 
