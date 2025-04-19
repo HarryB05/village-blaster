@@ -11,9 +11,16 @@ const GROUND_COLOR = 0x32CD32;
 const TREE_COLOR = 0x006400;
 const HOUSE_COLOR = 0xCD853F;
 
+// Number of villagers to spawn
+const NUMBER_OF_VILLAGERS = 10;
+
 // Game state
 let score = 0;
+let gameOver = false;
 const scoreElement = document.getElementById('score');
+const gameOverElement = document.getElementById('game-over');
+const restartButton = document.getElementById('restart-button');
+const pewPewElement = document.getElementById('pew-pew');
 
 // Player settings
 const player = {
@@ -77,6 +84,7 @@ class Villager {
         ).normalize();
         this.changeDirectionTime = 0;
         this.isDead = false;
+        this.bloodPool = null;
     }
 
     createMesh() {
@@ -210,12 +218,32 @@ class Villager {
         this.bloodPool = bloodPool;
         score += 100;
         scoreElement.textContent = `Score: ${score}`;
+        
+        // Check if all villagers are dead
+        checkGameOver();
+    }
+}
+
+// Function to check if all villagers are dead
+function checkGameOver() {
+    if (gameOver) return; // Already checked
+    
+    const allDead = villagers.every(villager => villager.isDead);
+    
+    if (allDead) {
+        gameOver = true;
+        // Show game over message
+        gameOverElement.style.display = 'block';
+        // Exit pointer lock
+        document.exitPointerLock();
+        // Disable controls
+        isPointerLocked = false;
     }
 }
 
 // Create villagers
 const villagers = [];
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < NUMBER_OF_VILLAGERS; i++) {
     const villager = new Villager(
         Math.random() * 20 - 10,
         Math.random() * 20 - 10
@@ -288,14 +316,20 @@ let isPointerLocked = false;
 const mouseSensitivity = 0.003;
 let euler = new THREE.Euler(0, 0, 0, 'YXZ'); // YXZ order ensures no tilting
 
-// Request pointer lock on click
-renderer.domElement.addEventListener('click', () => {
-    renderer.domElement.requestPointerLock();
-});
-
 // Handle pointer lock change
 document.addEventListener('pointerlockchange', () => {
     isPointerLocked = document.pointerLockElement === renderer.domElement;
+    if (!isPointerLocked && !gameOver) {
+        // If pointer lock is lost and game isn't over, request it again
+        renderer.domElement.requestPointerLock();
+    }
+});
+
+// Request pointer lock on click
+renderer.domElement.addEventListener('click', () => {
+    if (!gameOver) {
+        renderer.domElement.requestPointerLock();
+    }
 });
 
 // Handle mouse/trackpad movement
@@ -360,6 +394,12 @@ function createBullet() {
     scene.add(bulletGroup);
     bullets.push(bulletGroup);
     
+    // Show pew-pew text
+    pewPewElement.style.opacity = '1';
+    setTimeout(() => {
+        pewPewElement.style.opacity = '0';
+    }, 200);
+    
     // Add muzzle flash effect
     const flashGeometry = new THREE.SphereGeometry(0.4, 8, 8);
     const flashMaterial = new THREE.MeshBasicMaterial({ 
@@ -388,7 +428,7 @@ function createBullet() {
 let canShoot = true;
 const shootCooldown = 500;
 renderer.domElement.addEventListener('mousedown', (e) => {
-    if (e.button === 0 && canShoot && isPointerLocked) { // Left click
+    if (e.button === 0 && canShoot && isPointerLocked && !gameOver) { // Left click
         createBullet();
         canShoot = false;
         setTimeout(() => { canShoot = true; }, shootCooldown);
@@ -530,7 +570,8 @@ function animate() {
     const deltaTime = currentTime - lastTime;
     lastTime = currentTime;
     requestAnimationFrame(animate);
-    if (isPointerLocked) {
+    
+    if (isPointerLocked && !gameOver) {
         const moveDirection = new THREE.Vector3();
         const moveSpeed = player.speed;
         if (keys['w']) moveDirection.z -= moveSpeed;
@@ -542,6 +583,7 @@ function animate() {
         camera.position.copy(player.position);
         camera.position.y = 1.5;
     }
+    
     // Update bullets with smooth movement
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
@@ -576,4 +618,36 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-animate(); 
+animate();
+
+// Add restart functionality
+restartButton.addEventListener('click', () => {
+    // Reset game state
+    gameOver = false;
+    gameOverElement.style.display = 'none';
+    
+    // Clear existing villagers and their blood pools
+    while (villagers.length > 0) {
+        const villager = villagers.pop();
+        if (villager.bloodPool) {
+            scene.remove(villager.bloodPool);
+        }
+        scene.remove(villager.mesh);
+    }
+    
+    // Reset score
+    score = 0;
+    scoreElement.textContent = `Score: ${score}`;
+    
+    // Create new villagers
+    for (let i = 0; i < NUMBER_OF_VILLAGERS; i++) {
+        const x = Math.random() * 20 - 10;
+        const z = Math.random() * 20 - 10;
+        const villager = new Villager(x, z);
+        villagers.push(villager);
+        scene.add(villager.mesh);
+    }
+    
+    // Request pointer lock to start playing
+    renderer.domElement.requestPointerLock();
+}); 
